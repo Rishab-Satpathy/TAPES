@@ -1,0 +1,222 @@
+# TAPES Setup — Windows PowerShell
+# Run: Right-click → "Run with PowerShell"  OR  powershell -ExecutionPolicy Bypass -File setup.ps1
+
+$ErrorActionPreference = "Stop"
+
+function Write-Banner {
+    Write-Host ""
+    Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║         TAPES v8.0  —  Windows Setup            ║" -ForegroundColor Cyan
+    Write-Host "║   Cognition Pressure Architecture + IBM Bob      ║" -ForegroundColor Cyan
+    Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+function Write-Step($n, $total, $msg) {
+    Write-Host ""
+    Write-Host "[$n/$total] $msg" -ForegroundColor White -BackgroundColor DarkBlue
+}
+
+function Write-Ok($msg)   { Write-Host "  ✓  $msg" -ForegroundColor Green }
+function Write-Warn($msg) { Write-Host "  ⚠  $msg" -ForegroundColor Yellow }
+function Write-Fail($msg) { Write-Host "  ✗  $msg" -ForegroundColor Red }
+function Write-Info($msg) { Write-Host "     $msg" -ForegroundColor DarkGray }
+
+$HERE   = Split-Path -Parent $MyInvocation.MyCommand.Path
+$VENV   = Join-Path $HERE ".venv"
+$PY     = Join-Path $VENV "Scripts\python.exe"
+$TAPES  = Join-Path $VENV "Scripts\tapes.exe"
+$PYTEST = Join-Path $VENV "Scripts\pytest.exe"
+$ENV_F  = Join-Path $HERE ".env"
+$TOTAL  = 7
+
+Write-Banner
+
+# ── Step 1: Python ────────────────────────────────────────────────────────────
+Write-Step 1 $TOTAL "Checking Python version"
+try {
+    $pyver = python --version 2>&1
+    $match = $pyver -match "Python (\d+)\.(\d+)"
+    if ($matches[1] -lt 3 -or ($matches[1] -eq 3 -and $matches[2] -lt 12)) {
+        Write-Fail "Python 3.12+ required. Found: $pyver"
+        Write-Info "Download: https://python.org/downloads"
+        exit 1
+    }
+    Write-Ok $pyver
+} catch {
+    Write-Fail "Python not found in PATH."
+    Write-Info "Install Python 3.12+ from https://python.org/downloads"
+    Write-Info "Make sure to check 'Add Python to PATH' during install."
+    exit 1
+}
+
+# ── Step 2: Virtual environment ───────────────────────────────────────────────
+Write-Step 2 $TOTAL "Creating virtual environment"
+if (Test-Path $VENV) {
+    Write-Warn ".venv already exists — skipping creation"
+} else {
+    python -m venv $VENV
+    Write-Ok "Created .venv at $VENV"
+}
+
+# ── Step 3: Install TAPES ─────────────────────────────────────────────────────
+Write-Step 3 $TOTAL "Installing TAPES and dependencies"
+Write-Info "This may take 30-60 seconds..."
+
+& $PY -m pip install --upgrade pip --quiet
+$installResult = & $PY -m pip install -e ".[dev]" --quiet 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Warn "Dev extras failed — trying without [dev]..."
+    & $PY -m pip install -e . --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "Installation failed."
+        Write-Host $installResult
+        exit 1
+    }
+}
+Write-Ok "TAPES installed"
+if (Test-Path $TAPES) { Write-Ok "`tapes.exe` created at $TAPES" }
+else { Write-Fail "`tapes.exe` not found — install failed."; exit 1 }
+
+# ── Step 4: API keys ──────────────────────────────────────────────────────────
+Write-Step 4 $TOTAL "Configuring API keys"
+
+# Load existing .env
+$existing = @{}
+if (Test-Path $ENV_F) {
+    Write-Info "Found existing .env — pre-filling known keys."
+    foreach ($line in Get-Content $ENV_F) {
+        if ($line -match "^([^#=]+)=(.+)$") {
+            $existing[$matches[1].Trim()] = $matches[2].Trim()
+        }
+    }
+}
+
+function Get-ApiKey($envName, $label, $hint, $required) {
+    $current = [System.Environment]::GetEnvironmentVariable($envName) 
+    if (-not $current) { $current = $existing[$envName] }
+    
+    if ($current) {
+        $masked = if ($current.Length -gt 12) { $current.Substring(0,6) + "..." + $current.Substring($current.Length-4) } else { "***" }
+        Write-Host ""
+        Write-Host "  $label" -ForegroundColor White
+        Write-Info "Already configured: $masked"
+        $change = Read-Host "  Change it? [y/N]"
+        if ($change -ne "y") { return $current }
+    }
+    
+    Write-Host ""
+    Write-Host "  $label" -ForegroundColor White
+    Write-Info $hint
+    
+    while ($true) {
+        $value = Read-Host "  Enter $envName"
+        if ($value) { return $value }
+        elseif (-not $required) { Write-Info "Skipped."; return "" }
+        else { Write-Warn "This key is required. Try again." }
+    }
+}
+
+$watsonxKey  = Get-ApiKey "WATSONX_API_KEY"     "IBM watsonx / Bob API key"       "From console.ng.bluemix.net → Manage → Access → API Keys" $true
+$watsonxProj = Get-ApiKey "WATSONX_PROJECT_ID"  "IBM watsonx Project ID"           "From your watsonx.ai project settings page"               $true
+$openaiKey   = Get-ApiKey "OPENAI_API_KEY"       "OpenAI API key (optional)"        "From platform.openai.com/api-keys — press Enter to skip"  $false
+
+# Write .env
+$envContent = @(
+    "# TAPES environment — auto-generated by setup.ps1",
+    "# Do NOT commit this file to git.",
+    ""
+)
+if ($watsonxKey)  { $envContent += "WATSONX_API_KEY=$watsonxKey" }
+if ($watsonxProj) { $envContent += "WATSONX_PROJECT_ID=$watsonxProj" }
+if ($openaiKey)   { $envContent += "OPENAI_API_KEY=$openaiKey" }
+$envContent | Set-Content $ENV_F
+Write-Ok ".env written"
+
+$gitignore = Join-Path $HERE ".gitignore"
+if (Test-Path $gitignore) {
+    if (-not (Select-String -Path $gitignore -Pattern "\.env" -Quiet)) {
+        Write-Warn ".env is NOT in .gitignore — add it before pushing to GitHub."
+    }
+} else {
+    Write-Warn "No .gitignore found — create one and add .env."
+}
+
+# ── Step 5: Add to PATH ───────────────────────────────────────────────────────
+Write-Step 5 $TOTAL "Adding `tapes` to PATH"
+$scriptsDir = Join-Path $VENV "Scripts"
+$userPath   = [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+if ($userPath -like "*$scriptsDir*") {
+    Write-Ok "Already in PATH — no change needed"
+} else {
+    $newPath = "$scriptsDir;$userPath"
+    [System.Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Ok "Added to user PATH: $scriptsDir"
+    Write-Warn "Open a NEW terminal window for `tapes` to work globally."
+}
+
+# Also update current session PATH
+$env:PATH = "$scriptsDir;$env:PATH"
+
+# ── Step 6: Verify ────────────────────────────────────────────────────────────
+Write-Step 6 $TOTAL "Verifying installation"
+
+$helpResult = & $TAPES --help 2>&1
+if ($LASTEXITCODE -eq 0 -or ($helpResult -join " ") -match "usage") {
+    Write-Ok "`tapes --help` responds correctly"
+} else {
+    Write-Warn "`tapes --help` returned unexpected output — check manually."
+}
+
+if (Test-Path $PYTEST) {
+    Write-Info "Running test suite..."
+    $testResult = & $PYTEST "tests/" -q --tb=no --no-header 2>&1
+    $summary = ($testResult | Where-Object { $_ -match "passed|failed" } | Select-Object -Last 1)
+    if ($summary -match "failed") { Write-Warn "Tests: $summary" }
+    elseif ($summary)             { Write-Ok "Tests: $summary" }
+}
+
+# ── Step 7: Demo ──────────────────────────────────────────────────────────────
+Write-Step 7 $TOTAL "Running live demo"
+
+$envVars = @{}
+if ($watsonxKey)  { $env:WATSONX_API_KEY     = $watsonxKey }
+if ($watsonxProj) { $env:WATSONX_PROJECT_ID  = $watsonxProj }
+if ($openaiKey)   { $env:OPENAI_API_KEY       = $openaiKey }
+
+if (-not $watsonxKey -and -not $openaiKey) {
+    Write-Warn "No API key provided — skipping demo."
+    Write-Info "Run later: tapes --intent `"add hello function to models.py`""
+} else {
+    $demoScript = Join-Path $HERE "scripts\tapes_demo.py"
+    if (Test-Path $demoScript) {
+        Write-Info "Running scripts\tapes_demo.py ..."
+        & $PY $demoScript
+        if ($LASTEXITCODE -eq 0) { Write-Ok "Demo completed successfully" }
+        else { Write-Warn "Demo had an error — TAPES is still installed." }
+    } else {
+        Write-Info "Running quick intent demo..."
+        $demoDir = Join-Path $HERE "_setup_demo"
+        New-Item -ItemType Directory -Force -Path $demoDir | Out-Null
+        Set-Content (Join-Path $demoDir "demo.py") "# TAPES demo`n`ndef goodbye():`n    return 'bye'`n"
+        & $TAPES --intent "add a hello() function that returns 'hello world'" --source $demoDir
+        if ($LASTEXITCODE -eq 0) { Write-Ok "Demo completed — check _setup_demo\demo.py" }
+        else { Write-Warn "Demo had an error — run manually when ready." }
+    }
+}
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "  TAPES is ready." -ForegroundColor Green
+Write-Host "════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Quick start:" -ForegroundColor White
+Write-Host '    tapes --intent "fix the auth bug in login.py"'
+Write-Host '    tapes --intent "add logging to all API handlers"'
+Write-Host "    tapes ledger       — view decision history"
+Write-Host "    tapes dashboard    — open observability UI"
+Write-Host ""
+Write-Host "  NOTE: Open a NEW terminal for `tapes` to work in PATH." -ForegroundColor Yellow
+Write-Host ""

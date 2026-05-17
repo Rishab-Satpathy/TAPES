@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AITAPES Dashboard</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">AITAPES</span>
+                <span class="logo-sub">Cognition Stabilization</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline" onclick="refreshData()">↻ Refresh</button>
+            </div>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Plans</div>
+                <div class="stat-value" id="stat-plans">0</div>
+                <div class="stat-icon">📋</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Builds</div>
+                <div class="stat-value" id="stat-builds">0</div>
+                <div class="stat-icon">🔧</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Checks</div>
+                <div class="stat-value" id="stat-checks">0</div>
+                <div class="stat-icon">✓</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pass Rate</div>
+                <div class="stat-value" id="stat-pass-rate">0%</div>
+                <div class="stat-icon">📊</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-grid">
+            <!-- Contract Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Current Contract</h2>
+                    <span class="badge" id="contract-status">No contract</span>
+                </div>
+                <div class="panel-body" id="contract-view">
+                    <div class="empty-state">
+                        <p>No contract loaded.</p>
+                        <p class="hint">Run <code>tapes plan</code> to create one.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ledger Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Recent Activity</h2>
+                    <div class="filter-tabs">
+                        <button class="tab active" data-filter="all">All</button>
+                        <button class="tab" data-filter="plan">Plan</button>
+                        <button class="tab" data-filter="build">Build</button>
+                        <button class="tab" data-filter="check">Check</button>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="ledger-list" id="ledger-list">
+                        <div class="empty-state">
+                            <p>No activity yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pressure Visualization -->
+        <div class="panel full-width">
+            <div class="panel-header">
+                <h2>Pressure Axes</h2>
+                <span class="badge badge-info">Live</span>
+            </div>
+            <div class="panel-body">
+                <div class="pressure-grid" id="pressure-grid">
+                    <div class="pressure-item">
+                        <div class="pressure-label">Mutation Entropy</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                    <div class="pressure-item">
+                        <div class="pressure-label">Contradiction</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                    <div class="pressure-item">
+                        <div class="pressure-label">Branch Pressure</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                    <div class="pressure-item">
+                        <div class="pressure-label">Scope Bleeding</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                    <div class="pressure-item">
+                        <div class="pressure-label">Rep. Mismatch</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                    <div class="pressure-item">
+                        <div class="pressure-label">Validation Vol.</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                    <div class="pressure-item">
+                        <div class="pressure-label">Topology</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                    <div class="pressure-item">
+                        <div class="pressure-label">Ledger Pressure</div>
+                        <div class="pressure-bar"><div class="pressure-fill" style="width: 0%"></div></div>
+                        <div class="pressure-value">0.00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <span>AITAPES v0.1.0 — Cognition Stabilization Tool</span>
+            <span>Dashboard auto-refreshes every 5s</span>
+        </footer>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

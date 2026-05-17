@@ -1,0 +1,37 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# BobShell runtime
+.bob/
+
+# TAPES runtime files (generated)
+tapes-ledger.jsonl
+tapes-contract.json
+tapes-patches.json
+contract.json
+ledger.jsonl
+_demo_project/tapes-ledger.jsonl
+benchmark_v2_results.json
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
